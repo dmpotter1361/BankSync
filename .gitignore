@@ -1,0 +1,14 @@
+# Build output
+bin/
+obj/
+
+# User-specific VS files
+*.user
+.vs/
+
+# Rider
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
