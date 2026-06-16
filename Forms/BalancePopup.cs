@@ -1,3 +1,4 @@
+using BankSync.Helpers;
 using BankSync.Models;
 
 namespace BankSync.Forms;
@@ -11,9 +12,9 @@ public class BalancePopup : Form
     private int _activeSyncs;
 
     private static readonly string[] SpinFrames = ["↺", "↻"];
-    private static readonly Color BlueA = Color.FromArgb(60, 150, 255);
-    private static readonly Color BlueB = Color.FromArgb(130, 200, 255);
-    private static readonly Color IdleGray = Color.FromArgb(120, 120, 120);
+    private static Color BlueA    => AppTheme.SyncBlueA;
+    private static Color BlueB    => AppTheme.SyncBlueB;
+    private static Color IdleGray => AppTheme.SyncIdle;
 
     public BalancePopup(AppConfig config, Func<Account, Task>? syncOne = null)
     {
@@ -30,12 +31,13 @@ public class BalancePopup : Form
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         TopMost = true;
-        BackColor = Color.FromArgb(30, 30, 30);
+        BackColor = AppTheme.NavBack;
         Padding = new Padding(1);
         AutoSize = true;
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
         StartPosition = FormStartPosition.Manual;
         Deactivate += (s, e) => { if (_activeSyncs == 0) BeginInvoke(Close); };
+        DwmHelper.RoundCorners(this, small: true);
     }
 
     private void BuildContent()
@@ -44,7 +46,7 @@ public class BalancePopup : Form
         {
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            BackColor = Color.FromArgb(40, 40, 40),
+            BackColor = AppTheme.PanelBack,
             Padding = new Padding(16, 12, 16, 12),
             Margin = new Padding(1)
         };
@@ -70,7 +72,7 @@ public class BalancePopup : Form
 
         if (enabledAccounts.Count == 0)
         {
-            _layout.Controls.Add(MakeLabel("No accounts configured.", Color.Gray, 11));
+            _layout.Controls.Add(MakeLabel("No accounts configured.", AppTheme.TextDisabled, 11));
         }
         else
         {
@@ -80,39 +82,38 @@ public class BalancePopup : Form
                 if (!first) _layout.Controls.Add(MakeSeparator());
                 first = false;
 
-                // Create the timestamp label first so MakeAccountHeader can reference it
                 Label? timestampLbl = null;
                 if (account.LastBalance != null)
                     timestampLbl = MakeLabel($"  Updated {FormatAgo(account.LastBalance.AsOf)}",
-                                             Color.FromArgb(100, 100, 100), 8);
+                                             AppTheme.TextMuted, 8);
 
                 _layout.Controls.Add(MakeAccountHeader(account, timestampLbl));
 
                 if (account.LastBalance == null)
                 {
-                    _layout.Controls.Add(MakeLabel("  Not yet synced", Color.Gray, 10));
+                    _layout.Controls.Add(MakeLabel("  Not yet synced", AppTheme.TextDisabled, 10));
                 }
                 else
                 {
                     var bal = account.LastBalance;
-                    _layout.Controls.Add(MakeRow("Balance:", FormatMoney(bal.Ledger), Color.FromArgb(100, 220, 100)));
-                    _layout.Controls.Add(MakeRow("Available:", FormatMoney(bal.Available), Color.White));
+                    _layout.Controls.Add(MakeRow("Balance:", FormatMoney(bal.Ledger), AppTheme.Positive));
+                    _layout.Controls.Add(MakeRow("Available:", FormatMoney(bal.Available), AppTheme.TextPrimary));
                     _layout.Controls.Add(timestampLbl!);
 
                     if (Math.Abs(bal.Pending) > 0)
-                        _layout.Controls.Add(MakeRow("Pending:", FormatMoney(bal.Pending), Color.FromArgb(255, 180, 80)));
+                        _layout.Controls.Add(MakeRow("Pending:", FormatMoney(bal.Pending), AppTheme.Warning));
 
                     var pending = bal.RecentTransactions.Where(t => t.IsPending).ToList();
                     var recent  = bal.RecentTransactions.Where(t => !t.IsPending).Take(5).ToList();
 
                     if (pending.Count > 0)
                     {
-                        _layout.Controls.Add(MakeLabel("  Pending:", Color.FromArgb(255, 180, 80), 10));
+                        _layout.Controls.Add(MakeLabel("  Pending:", AppTheme.Warning, 10));
                         foreach (var tx in pending) _layout.Controls.Add(MakeTxRow(tx));
                     }
                     if (recent.Count > 0)
                     {
-                        _layout.Controls.Add(MakeLabel("  Recent:", Color.Gray, 10));
+                        _layout.Controls.Add(MakeLabel("  Recent:", AppTheme.TextDisabled, 10));
                         foreach (var tx in recent) _layout.Controls.Add(MakeTxRow(tx));
                     }
                 }
@@ -122,12 +123,12 @@ public class BalancePopup : Form
         _layout.Controls.Add(MakeSeparator());
         _layout.Controls.Add(MakeLabel(
             _config.LastSync.HasValue ? $"Synced {FormatAgo(_config.LastSync.Value)}" : "Never synced",
-            Color.Gray, 9));
+            AppTheme.TextDisabled, 9));
 
         if (!string.IsNullOrWhiteSpace(_config.SpreadsheetId))
         {
             var sheetUrl = $"https://docs.google.com/spreadsheets/d/{_config.SpreadsheetId}/edit";
-            var link = MakeLabel("Open spreadsheet ↗", Color.FromArgb(100, 150, 220), 9);
+            var link = MakeLabel("Open spreadsheet ↗", AppTheme.BlueLink, 9);
             link.Cursor = Cursors.Hand;
             link.Margin = new Padding(0, 2, 0, 0);
             link.Click += (_, _) =>
@@ -143,8 +144,10 @@ public class BalancePopup : Form
     {
         if (IsDisposed) return;
         if (InvokeRequired) { Invoke(Refresh); return; }
-        if (_activeSyncs > 0) return; // don't rebuild while animation is running
+        if (_activeSyncs > 0) return;
         _config = AppConfig.Load();
+        BackColor  = AppTheme.NavBack;
+        _panel.BackColor = AppTheme.PanelBack;
         PopulateLayout();
         PositionNearTray();
     }
@@ -162,12 +165,12 @@ public class BalancePopup : Form
             WrapContents = false
         };
 
-        var nameLink = MakeLabel(account.DisplayName, Color.White, 12, bold: true);
+        var nameLink = MakeLabel(account.DisplayName, AppTheme.TextPrimary, 12, bold: true);
         if (!string.IsNullOrWhiteSpace(account.LoginUrl))
         {
             var url = account.LoginUrl;
             nameLink.Cursor = Cursors.Hand;
-            nameLink.ForeColor = Color.FromArgb(130, 190, 255);
+            nameLink.ForeColor = AppTheme.BlueLink;
             nameLink.Click += (_, _) =>
             {
                 Close();
@@ -195,7 +198,6 @@ public class BalancePopup : Form
                 spinning = true;
                 _activeSyncs++;
 
-                // Immediate feedback before the first timer tick
                 syncLbl.ForeColor = BlueA;
                 syncLbl.Refresh();
                 if (timestampLbl != null && !timestampLbl.IsDisposed)
@@ -266,7 +268,7 @@ public class BalancePopup : Form
         var row = new TableLayoutPanel { ColumnCount = 2, AutoSize = true, Margin = new Padding(0, 1, 0, 1) };
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
         row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        row.Controls.Add(MakeLabel("  " + label, Color.FromArgb(170, 170, 170), 10), 0, 0);
+        row.Controls.Add(MakeLabel("  " + label, AppTheme.TextMuted, 10), 0, 0);
         row.Controls.Add(MakeLabel(value, valueColor, 10, bold: true), 1, 0);
         return row;
     }
@@ -274,11 +276,11 @@ public class BalancePopup : Form
     private static Control MakeTxRow(Transaction tx)
     {
         var name  = tx.Name.Length > 22 ? tx.Name[..22] + "…" : tx.Name;
-        var color = tx.Amount < 0 ? Color.FromArgb(255, 120, 120) : Color.FromArgb(100, 220, 100);
+        var color = tx.Amount < 0 ? AppTheme.Negative : AppTheme.Positive;
         var row   = new TableLayoutPanel { ColumnCount = 2, AutoSize = true, Margin = new Padding(0, 0, 0, 0) };
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
         row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        row.Controls.Add(MakeLabel("    " + name, Color.FromArgb(200, 200, 200), 9), 0, 0);
+        row.Controls.Add(MakeLabel("    " + name, AppTheme.TextSecondary, 9), 0, 0);
         row.Controls.Add(MakeLabel(FormatMoney(tx.Amount), color, 9), 1, 0);
         return row;
     }
@@ -286,7 +288,7 @@ public class BalancePopup : Form
     private static Panel MakeSeparator() => new Panel
     {
         Height = 1, Width = 260,
-        BackColor = Color.FromArgb(70, 70, 70),
+        BackColor = AppTheme.Separator,
         Margin = new Padding(0, 6, 0, 6)
     };
 

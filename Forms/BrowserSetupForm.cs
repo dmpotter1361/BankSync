@@ -1,3 +1,4 @@
+using BankSync.Helpers;
 using BankSync.Models;
 using BankSync.Services;
 using Microsoft.Playwright;
@@ -8,17 +9,17 @@ public class BrowserSetupForm : Form
 {
     private readonly Account _account;
 
-    private Label _stepLabel   = null!;
-    private Label _statusLabel = null!;
-    private Button _actionBtn  = null!;
-    private Button _cancelBtn  = null!;
+    private Label   _stepLabel   = null!;
+    private Label   _statusLabel = null!;
+    private Button  _actionBtn   = null!;
+    private Button  _cancelBtn   = null!;
     private ListBox _balanceList = null!;
-    private Label _pickLabel   = null!;
+    private Label   _pickLabel   = null!;
 
-    private IPlaywright? _pw;
-    private IBrowser?    _browser;
-    private IBrowserContext? _ctx;
-    private IPage?       _page;
+    private IPlaywright?      _pw;
+    private IBrowser?         _browser;
+    private IBrowserContext?  _ctx;
+    private IPage?            _page;
 
     private enum Step { NotStarted, BrowserOpen, PickBalance, Done }
     private Step _step = Step.NotStarted;
@@ -32,88 +33,83 @@ public class BrowserSetupForm : Form
 
     private void InitializeComponent()
     {
-        Text = $"Setup Login — {_account.DisplayName}";
-        Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
-        ClientSize = new Size(460, 420);   // client area, excludes title bar
+        Text            = $"Setup Login — {_account.DisplayName}";
+        Icon            = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+        ClientSize      = new Size(460, 420);
         FormBorderStyle = FormBorderStyle.FixedDialog;
-        MaximizeBox = false;
-        StartPosition = FormStartPosition.CenterScreen;
-        BackColor = Color.FromArgb(35, 35, 35);
-        ForeColor = Color.White;
-        Font = new Font("Segoe UI", 9);
-        FormClosing += OnClosing;
+        MaximizeBox     = false;
+        StartPosition   = FormStartPosition.CenterScreen;
+        BackColor       = AppTheme.FormBack;
+        ForeColor       = AppTheme.TextPrimary;
+        Font            = new Font("Segoe UI", 9);
+        FormClosing    += OnClosing;
 
         _stepLabel = new Label
         {
             Text = "Log in normally — including any 2FA codes.\nTip: check \"Remember me\" or \"Stay signed in\" if offered —\nthis keeps your session alive between syncs.\n\nThen navigate to your account balance page and click\n\"I can see my balance\".",
-            Location = new Point(20, 20),
-            Size = new Size(420, 105),
-            ForeColor = Color.FromArgb(200, 200, 200)
+            Location  = new Point(20, 20),
+            Size      = new Size(420, 105),
+            ForeColor = AppTheme.TextSecondary
         };
 
         _statusLabel = new Label
         {
-            Text = "",
-            Location = new Point(20, 132),
-            Size = new Size(420, 24),
-            ForeColor = Color.FromArgb(100, 200, 100)
+            Text      = "",
+            Location  = new Point(20, 132),
+            Size      = new Size(420, 24),
+            ForeColor = AppTheme.Positive
         };
 
         _pickLabel = new Label
         {
-            Text = "Which amount is your account balance?",
-            Location = new Point(20, 162),
-            Size = new Size(420, 20),
-            ForeColor = Color.FromArgb(200, 200, 200),
-            Visible = false
+            Text      = "Which amount is your account balance?",
+            Location  = new Point(20, 162),
+            Size      = new Size(420, 20),
+            ForeColor = AppTheme.TextSecondary,
+            Visible   = false
         };
 
         _balanceList = new ListBox
         {
-            Location = new Point(20, 186),
-            Size = new Size(420, 148),
-            BackColor = Color.FromArgb(50, 50, 50),
-            ForeColor = Color.White,
+            Location    = new Point(20, 186),
+            Size        = new Size(420, 148),
+            BackColor   = AppTheme.ListBack,
+            ForeColor   = AppTheme.TextPrimary,
             BorderStyle = BorderStyle.FixedSingle,
-            Visible = false
+            Visible     = false
         };
         _balanceList.DoubleClick += (_, _) => SaveSelectedBalance();
 
         _actionBtn = new Button
         {
-            Text = "Open Chrome",
+            Text     = "Open Chrome",
             Location = new Point(192, 372),
-            Width = 160
+            Width    = 160
         };
-        StyleButton(_actionBtn, Color.FromArgb(30, 140, 70));
+        StyleButton(_actionBtn, AppTheme.BtnGreen);
         _actionBtn.Click += OnActionClick;
 
         _cancelBtn = new Button
         {
-            Text = "Cancel",
-            Location = new Point(362, 372),
-            Width = 80,
+            Text         = "Cancel",
+            Location     = new Point(362, 372),
+            Width        = 80,
             DialogResult = DialogResult.Cancel
         };
-        StyleButton(_cancelBtn, Color.FromArgb(70, 70, 70));
+        StyleButton(_cancelBtn, AppTheme.BtnGray);
 
         Controls.AddRange(new Control[] { _stepLabel, _statusLabel, _pickLabel, _balanceList, _actionBtn, _cancelBtn });
         CancelButton = _cancelBtn;
+        DwmHelper.RoundCorners(this);
     }
 
     private async void OnActionClick(object? sender, EventArgs e)
     {
         switch (_step)
         {
-            case Step.NotStarted:
-                await OpenBrowserAsync();
-                break;
-            case Step.BrowserOpen:
-                await CapturSessionAsync();
-                break;
-            case Step.PickBalance:
-                SaveSelectedBalance();
-                break;
+            case Step.NotStarted:  await OpenBrowserAsync();    break;
+            case Step.BrowserOpen: await CapturSessionAsync();  break;
+            case Step.PickBalance: SaveSelectedBalance();       break;
         }
     }
 
@@ -133,7 +129,7 @@ public class BrowserSetupForm : Form
         catch (Exception ex)
         {
             _statusLabel.Text      = $"Error: {ex.Message}";
-            _statusLabel.ForeColor = Color.FromArgb(255, 100, 100);
+            _statusLabel.ForeColor = AppTheme.Negative;
             _actionBtn.Enabled     = true;
         }
     }
@@ -154,14 +150,13 @@ public class BrowserSetupForm : Form
             if (found.Count == 0)
             {
                 _statusLabel.Text      = "No dollar amounts found. Navigate to your account balance page first.";
-                _statusLabel.ForeColor = Color.FromArgb(255, 180, 80);
+                _statusLabel.ForeColor = AppTheme.Warning;
                 _actionBtn.Text        = "I can see my balance";
                 _actionBtn.Enabled     = true;
                 return;
             }
 
-            // Show picker
-            _step            = Step.PickBalance;
+            _step              = Step.PickBalance;
             _pickLabel.Visible = true;
             _balanceList.Visible = true;
             _stepLabel.Visible = false;
@@ -179,7 +174,7 @@ public class BrowserSetupForm : Form
         catch (Exception ex)
         {
             _statusLabel.Text      = $"Error: {ex.Message}";
-            _statusLabel.ForeColor = Color.FromArgb(255, 100, 100);
+            _statusLabel.ForeColor = AppTheme.Negative;
             _actionBtn.Enabled     = true;
         }
     }
@@ -199,20 +194,20 @@ public class BrowserSetupForm : Form
                 _account.BalanceSelector      = _foundBalances[_balanceList.SelectedIndex].Path;
             }
 
-            _step              = Step.Done;
-            _pickLabel.Visible = false;
-            _balanceList.Visible = false;
-            _statusLabel.Text  = "Done! BankSync will sync this balance automatically.";
-            _statusLabel.ForeColor = Color.FromArgb(100, 220, 100);
-            _actionBtn.Text    = "Close";
-            _actionBtn.Enabled = true;
-            _actionBtn.Click  -= OnActionClick;
-            _actionBtn.Click  += (_, _) => { DialogResult = DialogResult.OK; Close(); };
+            _step                   = Step.Done;
+            _pickLabel.Visible      = false;
+            _balanceList.Visible    = false;
+            _statusLabel.Text       = "Done! BankSync will sync this balance automatically.";
+            _statusLabel.ForeColor  = AppTheme.Positive;
+            _actionBtn.Text         = "Close";
+            _actionBtn.Enabled      = true;
+            _actionBtn.Click       -= OnActionClick;
+            _actionBtn.Click       += (_, _) => { DialogResult = DialogResult.OK; Close(); };
         }
         catch (Exception ex)
         {
             _statusLabel.Text      = $"Error: {ex.Message}";
-            _statusLabel.ForeColor = Color.FromArgb(255, 100, 100);
+            _statusLabel.ForeColor = AppTheme.Negative;
             _actionBtn.Enabled     = true;
         }
     }

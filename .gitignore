@@ -2,6 +2,9 @@
 bin/
 obj/
 
+# Bundled OAuth credentials — never commit these
+credentials.json
+
 # User-specific VS files
 *.user
 .vs/

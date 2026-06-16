@@ -16,4 +16,11 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
   </ItemGroup>
 
+  <!-- Copy credentials.json to output if present (never committed to git) -->
+  <ItemGroup>
+    <None Update="credentials.json" Condition="Exists('credentials.json')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

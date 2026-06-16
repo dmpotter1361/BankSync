@@ -1,4 +1,5 @@
 using BankSync.Forms;
+using BankSync.Helpers;
 using BankSync.Models;
 using BankSync.Services;
 using Microsoft.Win32;
@@ -26,6 +27,7 @@ public class TrayApp : ApplicationContext
     {
         _uiContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
         _config = AppConfig.Load();
+        AppTheme.Apply(_config.Theme);
         ApplyStartupRegistry();
 
         _tray = new NotifyIcon
@@ -43,13 +45,20 @@ public class TrayApp : ApplicationContext
 
         SetupWatchers();
 
+        if (!_config.WizardCompleted)
+        {
+            var wizTimer = new System.Windows.Forms.Timer { Interval = 300 };
+            wizTimer.Tick += (_, _) => { wizTimer.Stop(); wizTimer.Dispose(); ShowFirstRunWizard(); };
+            wizTimer.Start();
+        }
+
         _ = Task.Delay(2000).ContinueWith(_ => SyncAsync(), TaskScheduler.Default);
     }
 
     private ContextMenuStrip BuildMenu()
     {
         var menu = new ContextMenuStrip();
-        menu.Renderer = new DarkMenuRenderer();
+        menu.Renderer = new ThemeMenuRenderer();
 
         _statusItem = new ToolStripMenuItem("Last sync: never") { Enabled = false };
         _errorItem  = new ToolStripMenuItem("") { ForeColor = Color.FromArgb(255, 120, 120), Visible = false };
@@ -353,6 +362,17 @@ public class TrayApp : ApplicationContext
         _tray.Text = _paused ? "BankSync — paused" : "BankSync";
     }
 
+    private void ShowFirstRunWizard()
+    {
+        using var wiz = new FirstRunWizard(_config);
+        wiz.ShowDialog();
+        _config = wiz.UpdatedConfig;
+        _config.WizardCompleted = true;
+        _config.Save();
+        if (wiz.ShouldOpenSettings)
+            OnSettings(null, EventArgs.Empty);
+    }
+
     private void OnSettings(object? sender, EventArgs e)
     {
         _config = AppConfig.Load();
@@ -360,9 +380,11 @@ public class TrayApp : ApplicationContext
         if (form.ShowDialog() == DialogResult.OK)
         {
             _config = form.UpdatedConfig;
+            AppTheme.Apply(_config.Theme);
             _config.Save();
             ApplyStartupRegistry();
-            SetupWatchers(); // re-build watchers in case folders changed
+            SetupWatchers();
+            _tray.ContextMenuStrip = BuildMenu(); // rebuild menu with updated theme
         }
     }
 
@@ -434,27 +456,27 @@ public class TrayApp : ApplicationContext
     }
 }
 
-internal class DarkMenuRenderer : ToolStripProfessionalRenderer
+internal class ThemeMenuRenderer : ToolStripProfessionalRenderer
 {
-    public DarkMenuRenderer() : base(new DarkColorTable()) { }
+    public ThemeMenuRenderer() : base(new ThemeColorTable()) { }
     protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
     {
-        e.TextColor = e.Item.Enabled ? Color.White : Color.Gray;
+        e.TextColor = e.Item.Enabled ? AppTheme.MenuText : AppTheme.MenuTextDim;
         base.OnRenderItemText(e);
     }
 }
 
-internal class DarkColorTable : ProfessionalColorTable
+internal class ThemeColorTable : ProfessionalColorTable
 {
-    public override Color MenuBorder                       => Color.FromArgb(60, 60, 60);
-    public override Color MenuItemBorder                   => Color.FromArgb(80, 80, 80);
-    public override Color MenuItemSelected                 => Color.FromArgb(60, 60, 60);
-    public override Color MenuItemSelectedGradientBegin    => Color.FromArgb(60, 60, 60);
-    public override Color MenuItemSelectedGradientEnd      => Color.FromArgb(60, 60, 60);
-    public override Color ToolStripDropDownBackground      => Color.FromArgb(40, 40, 40);
-    public override Color ImageMarginGradientBegin         => Color.FromArgb(40, 40, 40);
-    public override Color ImageMarginGradientMiddle        => Color.FromArgb(40, 40, 40);
-    public override Color ImageMarginGradientEnd           => Color.FromArgb(40, 40, 40);
-    public override Color SeparatorDark                    => Color.FromArgb(70, 70, 70);
-    public override Color SeparatorLight                   => Color.FromArgb(70, 70, 70);
+    public override Color MenuBorder                    => AppTheme.MenuBorder;
+    public override Color MenuItemBorder                => AppTheme.MenuBorder;
+    public override Color MenuItemSelected              => AppTheme.MenuSelected;
+    public override Color MenuItemSelectedGradientBegin => AppTheme.MenuSelected;
+    public override Color MenuItemSelectedGradientEnd   => AppTheme.MenuSelected;
+    public override Color ToolStripDropDownBackground   => AppTheme.MenuBack;
+    public override Color ImageMarginGradientBegin      => AppTheme.MenuBack;
+    public override Color ImageMarginGradientMiddle     => AppTheme.MenuBack;
+    public override Color ImageMarginGradientEnd        => AppTheme.MenuBack;
+    public override Color SeparatorDark                 => AppTheme.MenuSep;
+    public override Color SeparatorLight                => AppTheme.MenuSep;
 }
